@@ -22,6 +22,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Optional;
@@ -124,13 +125,13 @@ public class SchedulerThreadService {
     //    Optional<Triggers> triggers = triggerRepository.findTypeByName(name);
     //    triggers.get().setType("true");
     Query query = new Query();
-    query.addCriteria(Criteria.where("type").is(name));
+    query.addCriteria(Criteria.where("_id").is(name));
 
     Update update = new Update();
     update.set("is_executed", true);
 
     Triggers userTest = mongoOperations.findAndModify(query, update, new FindAndModifyOptions().returnNew(true), Triggers.class);
-    //    System.out.println("userTest - " + userTest);
+        System.out.println("userTest - " + userTest);
   }
 
   //  @Async
@@ -148,13 +149,13 @@ public class SchedulerThreadService {
     Thread thread = new Thread(t1);
 
     // "11:57" equal to format
-    if (item.getTime().equals(format)) {
+    if (item.getTime().equals("11:57")) {
       Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
       Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
-
+      List<Document> invalidCustomerList = new ArrayList<Document>();
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
       int validCounter = 0;
@@ -169,35 +170,29 @@ public class SchedulerThreadService {
           //            cursor.next();
           document = cursor.next();
           Document details = new Document();
-          details = (Document) document.get("clr");;
+          details = (Document) document.get("clr");
           String number = (String) details.get("cust_mob_phone");
           String email = (String) details.get("cust_email_id");
 
           boolean isValid = false;
           if (email != null || !email.matches("")) {
-            //            System.out.println("Orignal Mailing Address  " + email);
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
-              System.out.println(" Emails Sent " + email);
-              //                  senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
+//              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              //              System.out.println("Invalid Emails :.... " + email);
+              invalidCustomerList.add(document);
             }
           }
           if (email == null || email.matches("")) {
             nullEmails++;
           }
           if (number == null || number.matches("")) {
-            System.out.println("Orignal Contact Number is  " + number);
-            //            System.out.println("True");
             invalidCounter++;
-            continue;
           } else {
             if (number.charAt(0) == '0') {
               number = number.replace("-", "");
               if (number.length() != 11) {
-                System.out.println("Number have 0 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 number = number.substring(1, number.length());
@@ -205,33 +200,29 @@ public class SchedulerThreadService {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number start with 0 : " + number);
               }
             } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
               if (number.length() != 13) {
-                System.out.println("Number have +92 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number have +92: " + number);
               }
             } else {
-              System.out.println("Invalid Number Format " + number);
               invalidCounter++;
             }
           }
           if (isValid) {
-//            if (smslimit == 1) {
-//              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-//              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-//              smsCustomers.setMobile_phone_number("+923105405425");
-//              smsCustomers.setMailing_address(email);
-//              smsService.send(smsCustomers);
-//              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-//              System.out.println("Test email sended successfully ;");
-//            }
+            if (smslimit == 1) {
+              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
+              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
+              //              smsCustomers.setMobile_phone_number("+923105405425");
+              //              smsCustomers.setMailing_address(email);
+              //              smsService.send(smsCustomers);
+              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
+              //              System.out.println("Test email sent successfully ;");
+            }
           }
         }
         System.out.println("Invalid Record is : " + invalidCounter);
@@ -239,7 +230,7 @@ public class SchedulerThreadService {
         System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
         item.setIs_executed(true);
         Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.getType());
+        setTrigger(item.get_id());
       } finally {
         cursor.close();
       }
@@ -260,13 +251,14 @@ public class SchedulerThreadService {
     CustomThread t2 = new CustomThread("Second  thread");
     Thread thread = new Thread(t2);
 
-    if (item.getTime().equals(format)) {
+    if (item.getTime().equals("21:00")) {
       Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
       Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
 
+      List<Document> invalidCustomerList = new ArrayList<Document>();
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
       int validCounter = 0;
@@ -281,34 +273,28 @@ public class SchedulerThreadService {
           //            cursor.next();
           document = cursor.next();
           Document details = new Document();
-          details = (Document) document.get("clr");;
+          details = (Document) document.get("clr");
           String number = (String) details.get("cust_mob_phone");
           String email = (String) details.get("cust_email_id");
           boolean isValid = false;
           if (email != null || !email.matches("")) {
-            //            System.out.println("Orignal Mailing Address  " + email);
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
-              System.out.println(" Emails Sent " + email);
-              //                  senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
+              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              //              System.out.println("Invalid Emails :.... " + email);
+              invalidCustomerList.add(document);
             }
           }
           if (email == null || email.matches("")) {
             nullEmails++;
           }
           if (number == null || number.matches("")) {
-            System.out.println("Orignal Contact Number is  " + number);
-            //            System.out.println("True");
             invalidCounter++;
-            continue;
           } else {
             if (number.charAt(0) == '0') {
               number = number.replace("-", "");
               if (number.length() != 11) {
-                System.out.println("Number have 0 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 number = number.substring(1, number.length());
@@ -316,33 +302,29 @@ public class SchedulerThreadService {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number start with 0 : " + number);
               }
             } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
               if (number.length() != 13) {
-                System.out.println("Number have +92 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number have +92: " + number);
               }
             } else {
-              System.out.println("Invalid Number Format " + number);
               invalidCounter++;
             }
           }
           if (isValid) {
-            //            if (smslimit == 1) {
-            //              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-            //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-            //              smsCustomers.setMobile_phone_number("+923105405425");
-            //              smsCustomers.setMailing_address(email);
-            //              smsService.send(smsCustomers);
-            //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-            //              System.out.println("Test email sended successfully ;");
-            //            }
+            if (smslimit == 1) {
+              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
+              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
+              //              smsCustomers.setMobile_phone_number("+923105405425");
+              //              smsCustomers.setMailing_address(email);
+              //              smsService.send(smsCustomers);
+              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
+              //              System.out.println("Test email sent successfully ;");
+            }
           }
         }
         System.out.println("Invalid Record is : " + invalidCounter);
@@ -350,7 +332,7 @@ public class SchedulerThreadService {
         System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
         item.setIs_executed(true);
         Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.getType());
+        setTrigger(item.get_id());
       } finally {
         cursor.close();
       }
@@ -379,6 +361,7 @@ public class SchedulerThreadService {
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
+      List<Document> invalidCustomerList = new ArrayList<Document>();
 
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
@@ -394,34 +377,28 @@ public class SchedulerThreadService {
           //            cursor.next();
           document = cursor.next();
           Document details = new Document();
-          details = (Document) document.get("clr");;
+          details = (Document) document.get("clr");
           String number = (String) details.get("cust_mob_phone");
           String email = (String) details.get("cust_email_id");
           boolean isValid = false;
           if (email != null || !email.matches("")) {
-            //            System.out.println("Orignal Mailing Address  " + email);
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
-              System.out.println(" Emails Sent " + email);
-              //                  senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
+              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              //              System.out.println("Invalid Emails :.... " + email);
+              invalidCustomerList.add(document);
             }
           }
           if (email == null || email.matches("")) {
             nullEmails++;
           }
           if (number == null || number.matches("")) {
-            System.out.println("Orignal Contact Number is  " + number);
-            //            System.out.println("True");
             invalidCounter++;
-            continue;
           } else {
             if (number.charAt(0) == '0') {
               number = number.replace("-", "");
               if (number.length() != 11) {
-                System.out.println("Number have 0 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 number = number.substring(1, number.length());
@@ -429,33 +406,29 @@ public class SchedulerThreadService {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number start with 0 : " + number);
               }
             } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
               if (number.length() != 13) {
-                System.out.println("Number have +92 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number have +92: " + number);
               }
             } else {
-              System.out.println("Invalid Number Format " + number);
               invalidCounter++;
             }
           }
           if (isValid) {
-            //            if (smslimit == 1) {
-            //              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-            //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-            //              smsCustomers.setMobile_phone_number("+923105405425");
-            //              smsCustomers.setMailing_address(email);
-            //              smsService.send(smsCustomers);
-            //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-            //              System.out.println("Test email sended successfully ;");
-            //            }
+            if (smslimit == 1) {
+              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
+              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
+              //              smsCustomers.setMobile_phone_number("+923105405425");
+              //              smsCustomers.setMailing_address(email);
+              //              smsService.send(smsCustomers);
+              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
+              //              System.out.println("Test email sent successfully ;");
+            }
           }
         }
         System.out.println("Invalid Record is : " + invalidCounter);
@@ -463,7 +436,7 @@ public class SchedulerThreadService {
         System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
         item.setIs_executed(true);
         Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.getType());
+        setTrigger(item.get_id());
       } finally {
         cursor.close();
       }
@@ -493,6 +466,7 @@ public class SchedulerThreadService {
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
+      List<Document> invalidCustomerList = new ArrayList<Document>();
 
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
@@ -508,34 +482,29 @@ public class SchedulerThreadService {
           //            cursor.next();
           document = cursor.next();
           Document details = new Document();
-          details = (Document) document.get("clr");;
+          details = (Document) document.get("clr");
+          ;
           String number = (String) details.get("cust_mob_phone");
           String email = (String) details.get("cust_email_id");
           boolean isValid = false;
           if (email != null || !email.matches("")) {
-            //            System.out.println("Orignal Mailing Address  " + email);
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
-              System.out.println(" Emails Sent " + email);
-              //                  senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
+              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              //              System.out.println("Invalid Emails :.... " + email);
+              invalidCustomerList.add(document);
             }
           }
           if (email == null || email.matches("")) {
             nullEmails++;
           }
           if (number == null || number.matches("")) {
-            System.out.println("Orignal Contact Number is  " + number);
-            //            System.out.println("True");
             invalidCounter++;
-            continue;
           } else {
             if (number.charAt(0) == '0') {
               number = number.replace("-", "");
               if (number.length() != 11) {
-                System.out.println("Number have 0 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 number = number.substring(1, number.length());
@@ -543,33 +512,29 @@ public class SchedulerThreadService {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number start with 0 : " + number);
               }
             } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
               if (number.length() != 13) {
-                System.out.println("Number have +92 but Invalid Number" + number);
                 invalidCounter++;
               } else {
                 isValid = true;
                 smslimit++;
                 validCounter++;
-                System.out.println("Number have +92: " + number);
               }
             } else {
-              System.out.println("Invalid Number Format " + number);
               invalidCounter++;
             }
           }
           if (isValid) {
-            //            if (smslimit == 1) {
-            //              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-            //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-            //              smsCustomers.setMobile_phone_number("+923105405425");
-            //              smsCustomers.setMailing_address(email);
-            //              smsService.send(smsCustomers);
-            //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-            //              System.out.println("Test email sended successfully ;");
-            //            }
+            if (smslimit == 1) {
+              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
+              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
+              //              smsCustomers.setMobile_phone_number("+923105405425");
+              //              smsCustomers.setMailing_address(email);
+              //              smsService.send(smsCustomers);
+              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
+              //              System.out.println("Test email sent successfully ;");
+            }
           }
         }
         System.out.println("Invalid Record is : " + invalidCounter);
@@ -577,7 +542,7 @@ public class SchedulerThreadService {
         System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
         item.setIs_executed(true);
         Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.getType());
+        setTrigger(item.get_id());
       } finally {
         cursor.close();
       }

@@ -30,27 +30,5 @@ public class AsyncConfig extends AsyncConfigurerSupport {
   public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
     return super.getAsyncUncaughtExceptionHandler();
   }
-
-  //  @Bean(name ="taskExecutor")
-  //  public Executor taskExecutor(){
-  //    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-  //    executor.setCorePoolSize(10);
-  //    executor.setMaxPoolSize(10);
-  //    executor.setQueueCapacity(100);
-  //    executor.setThreadNamePrefix("executor-1");
-  //    executor.initialize();
-  //    return executor;
-  //  }
-  //  @Bean(name ="taskExecutor-1")
-  //  public Executor taskCompleteExecutor(){
-  //    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-  //    executor.setCorePoolSize(10);
-  //    executor.setMaxPoolSize(10);
-  //    executor.setQueueCapacity(1000);
-  ////    executor.setKeepAliveSeconds(60);
-  //    executor.setThreadNamePrefix("executor-2");
-  //    executor.initialize();
-  //    return executor;
-  //  }
 }
 
