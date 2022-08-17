@@ -6,6 +6,7 @@ import com.example.batch_scheduler.model.SmsCustomers;
 import com.example.batch_scheduler.model.Triggers;
 import com.example.batch_scheduler.notifications.EmailSenderService;
 import com.example.batch_scheduler.notifications.SmsService;
+import com.example.batch_scheduler.repository.InvalidCustomerRepository;
 import com.example.batch_scheduler.repository.TriggerRepository;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -19,14 +20,11 @@ import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Optional;
-import java.time.LocalTime;
 import java.util.Calendar;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -54,6 +52,12 @@ public class SchedulerThreadService {
 
   @Autowired
   private SmsService smsService;
+
+  @Autowired
+  private InvalidCustomerService invalidCustomerService;
+
+  @Autowired
+  private InvalidCustomerRepository invalidCustomerRepository;
 
   static volatile boolean keepRunning = true;
 
@@ -131,7 +135,7 @@ public class SchedulerThreadService {
     update.set("is_executed", true);
 
     Triggers userTest = mongoOperations.findAndModify(query, update, new FindAndModifyOptions().returnNew(true), Triggers.class);
-        System.out.println("userTest - " + userTest);
+    System.out.println("userTest - " + userTest);
   }
 
   //  @Async
@@ -155,7 +159,7 @@ public class SchedulerThreadService {
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
-      List<Document> invalidCustomerList = new ArrayList<Document>();
+
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
       int validCounter = 0;
@@ -178,10 +182,10 @@ public class SchedulerThreadService {
           if (email != null || !email.matches("")) {
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
-//              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
+              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              invalidCustomerList.add(document);
+              invalidCustomerService.addInvalidCustomer(document);
             }
           }
           if (email == null || email.matches("")) {
@@ -215,16 +219,17 @@ public class SchedulerThreadService {
           }
           if (isValid) {
             if (smslimit == 1) {
-              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
+              //              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
               //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
               //              smsCustomers.setMobile_phone_number("+923105405425");
               //              smsCustomers.setMailing_address(email);
               //              smsService.send(smsCustomers);
-              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-              //              System.out.println("Test email sent successfully ;");
+              //                            senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
+              //              System.out.println("Test email sent successfully ;")
             }
           }
         }
+
         System.out.println("Invalid Record is : " + invalidCounter);
         System.out.println("Valid Record is : " + validCounter);
         System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
@@ -258,7 +263,6 @@ public class SchedulerThreadService {
 
       MongoCollection collection = database.getCollection(index[0]);
 
-      List<Document> invalidCustomerList = new ArrayList<Document>();
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
       int validCounter = 0;
@@ -283,7 +287,7 @@ public class SchedulerThreadService {
               //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              invalidCustomerList.add(document);
+              invalidCustomerService.addInvalidCustomer(document);
             }
           }
           if (email == null || email.matches("")) {
@@ -361,7 +365,6 @@ public class SchedulerThreadService {
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
-      List<Document> invalidCustomerList = new ArrayList<Document>();
 
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
@@ -387,7 +390,7 @@ public class SchedulerThreadService {
               //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              invalidCustomerList.add(document);
+              invalidCustomerService.addInvalidCustomer(document);
             }
           }
           if (email == null || email.matches("")) {
@@ -466,7 +469,6 @@ public class SchedulerThreadService {
       String index[] = segment.get().getSegment_collection().split("_");
 
       MongoCollection collection = database.getCollection(index[0]);
-      List<Document> invalidCustomerList = new ArrayList<Document>();
 
       MongoCursor<Document> cursor = collection.find().iterator();
       int invalidCounter = 0;
@@ -483,7 +485,6 @@ public class SchedulerThreadService {
           document = cursor.next();
           Document details = new Document();
           details = (Document) document.get("clr");
-          ;
           String number = (String) details.get("cust_mob_phone");
           String email = (String) details.get("cust_email_id");
           boolean isValid = false;
@@ -493,7 +494,7 @@ public class SchedulerThreadService {
               //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
               invalidEmails++;
-              invalidCustomerList.add(document);
+              invalidCustomerService.addInvalidCustomer(document);
             }
           }
           if (email == null || email.matches("")) {
