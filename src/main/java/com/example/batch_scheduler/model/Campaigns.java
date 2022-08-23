@@ -16,12 +16,20 @@ import javax.persistence.Id;
 @Document(collection = "campaigns")
 public class Campaigns {
   @Id
-  private String _id;
+  private ObjectId _id;
   private String name;
   private String objective;
-  private String segment;
+  private ObjectId segment;
   private String details;
   private String subject;
   private String content;
   private String type;
 }
+//  private ObjectId _id;
+//  private String name;
+//  private String objective;
+//  private String segment;
+//  private String details;
+//  private String subject;
+//  private String content;
+//  private String type;

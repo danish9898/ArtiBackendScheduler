@@ -3,17 +3,22 @@ package com.example.batch_scheduler.service;
 import com.example.batch_scheduler.model.Campaigns;
 import com.example.batch_scheduler.model.Segments;
 import com.example.batch_scheduler.model.SmsCustomers;
+import com.example.batch_scheduler.model.TriggerCollection;
+import com.example.batch_scheduler.model.Triggerlog;
 import com.example.batch_scheduler.model.Triggers;
 import com.example.batch_scheduler.notifications.EmailSenderService;
 import com.example.batch_scheduler.notifications.SmsService;
-import com.example.batch_scheduler.repository.InvalidCustomerRepository;
+
 import com.example.batch_scheduler.repository.TriggerRepository;
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import lombok.SneakyThrows;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -22,10 +27,17 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.Calendar;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -56,17 +68,12 @@ public class SchedulerThreadService {
   @Autowired
   private InvalidCustomerService invalidCustomerService;
 
+
   @Autowired
-  private InvalidCustomerRepository invalidCustomerRepository;
+  private TriggerLogService triggerLogService;
 
-  static volatile boolean keepRunning = true;
-
-  Runtime r = Runtime.getRuntime();
-  // creating two objects t1 & t2 of MyThread
-  //      CustomThread t1 = new CustomThread("First  thread");
-  //      CustomThread t2 = new CustomThread("Second thread");
-  //      CustomThread t3 = new CustomThread("Third thread");
-  //      CustomThread t4 = new CustomThread("Forth thread");
+  @Autowired
+  private TriggerCollectionService triggerCollectionService;
 
   // Create Formatter class object
   Formatter format = new Formatter();
@@ -78,477 +85,279 @@ public class SchedulerThreadService {
   String regex = "^[\\w!#$%&'*+/=?`{|}~^-]+(?:\\.[\\w!#$%&'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
   Pattern pattern = Pattern.compile(regex);
 
+  public String getDayToString() {
+    Date date = new Date();
+    Calendar c = Calendar.getInstance();
+    c.setTime(date);
+    //    int dayOfWeek = c.get(Calendar.DAY_OF_WEEK);
+    String dayWeekText = new SimpleDateFormat("EEEE").format(date);
+    return dayWeekText;
+  }
+
+  // Method to get number of days in month
+  public static int getNumberOfDaysInMonth(int year, int month) {
+    YearMonth yearMonthObject = YearMonth.of(year, month);
+    int daysInMonth = yearMonthObject.lengthOfMonth();
+    return daysInMonth;
+  }
+
+  public boolean getDateToString(String date) {
+    //2020-06-30
+    LocalDate localDate = LocalDate.now();
+    Calendar cal = Calendar.getInstance();
+    int dayOfMonth = cal.get(Calendar.DAY_OF_MONTH);
+
+    //    LocalDate date1 = LocalDate.parse(date);
+    if (!date.matches(String.valueOf(localDate))) {
+      date = date.replace("-", "");
+      String year = new String();
+      String month = new String();
+      String day = new String();
+      for (int i = 0; i < date.length(); i++) {
+        if (i <= 3) {
+          year += date.charAt(i);
+        } else if (i > 3 && i <= 5) {
+          month += date.charAt(i);
+        } else if (i > 5 && i <= 7) {
+          day += date.charAt(i);
+        } else {
+          continue;
+        }
+      }
+      int integeryear = Integer.parseInt(year);
+      int integerday = Integer.parseInt(day);
+      int integermonth = Integer.parseInt(month);
+      int numberOfDaysInMonthays = getNumberOfDaysInMonth(integeryear, integermonth);
+
+      if (localDate.getYear() < integeryear) {
+        return false;
+      } else if (integerday == localDate.getDayOfMonth() && integermonth != localDate.getMonthValue()) {
+        return true;
+      } else if ((integerday == localDate.getDayOfMonth()) && (integermonth == localDate.getMonthValue()) && (integeryear != localDate.getYear())) {
+        return true;
+      } else if ((integerday > 28) && (numberOfDaysInMonthays < 29) && (dayOfMonth == 28)) {
+        return true;
+      } else if ((integerday > 28) && (numberOfDaysInMonthays == 29) && (dayOfMonth == 29)) {
+        return true;
+      } else if ((integerday > 30) && (numberOfDaysInMonthays == 30) && (dayOfMonth == 30)) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    return false;
+  }
+
   public void getCampaigns() {
+
     String uri = "mongodb://localhost";
     MongoClient mongoClient = MongoClients.create(uri);
     MongoDatabase database = mongoClient.getDatabase("ArtiDb_Collections_Data_Export");
+
     List<Triggers> allTrigger = triggerRepository.findAll();
 
-    // creating two objects t1 & t2 of MyThread
-    //    CustomThread t1 = new CustomThread("First  thread");
-    //    CustomThread t2 = new CustomThread("Second thread");
-    //    CustomThread t3 = new CustomThread("Third thread");
-    //    CustomThread t4 = new CustomThread("Forth thread");
+    format = new Formatter();
+    format.format("%tl:%tM", gfg_calender, gfg_calender);
 
     for (Triggers item : allTrigger) {
       // Once
-      if ((item.getType().equals("once")) && (item.getIs_executed().equals(false))) {
-        onceScheduler(item, database);
-        //        System.out.println("Once: " + item);
+      if (item.getType().equals("once")) {
+        if ((item.getIs_executed().equals(false)) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else if (item.getIs_executed().equals(true) && (item.getRecursive().equals(true)) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else {
+          continue;
+        }
       }
       // Daily
-      else if (item.getType().equals("daily") && (item.getIs_executed().equals(false))) {
-        //        System.out.println("daily: "+item);
-        dailyScheduler(item, database);
-
+      else if (item.getType().equals("daily")) {
+        if ((item.getIs_executed().equals(false)) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else if ((item.getIs_executed().equals(true)) && (item.getRecursive().equals(true)) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else {
+          continue;
+        }
       }
       // Weekly
-      else if (item.getType().equals("weekly") && (item.getIs_executed().equals(false))) {
-        //        System.out.println("weekly: "+item);
-        weeklyScheduler(item, database);
-
+      else if (item.getType().equals("weekly")) {
+        if ((item.getIs_executed().equals(false)) && (item.getTime().equals(format)) && (item.getDay().equalsIgnoreCase(getDayToString()))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else if ((item.getIs_executed().equals(true)) && (item.getDay().equalsIgnoreCase(getDayToString())) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else {
+          continue;
+        }
       }
       // Monthly
-      else if (item.getType().equals("monthly") && (item.getIs_executed().equals(false))) {
-        //        System.out.println("monthly: "+item);
-        monthlyScheduler(item, database);
-
+      else if (item.getType().equals("monthly")) {
+        if ((item.getIs_executed().equals(false)) && (item.getTime().equals(format))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else if ((item.getIs_executed().equals(true)) && (item.getTime().equals(format)) && (getDateToString(item.getDate()))) {
+          new Thread(() -> Scheduler(item, database)).start();
+        } else {
+          continue;
+        }
       } else {
         System.out.println("No Thread Created : ");
-        System.out.println("Number of active threads from the given thread: " + "Thread.activeCount()" + java.lang.Thread.activeCount());
+        //        System.out.println("Number of active threads from the given thread: " + "Thread.activeCount()" + java.lang.Thread.activeCount());
         System.out.println("Current Thread is alive : " + Thread.currentThread().getName());
       }
     }
   }
 
-  public Optional<Triggers> getTrigger(String name) {
-    return triggerRepository.findTypeByName(name);
-  }
+  public void setTrigger(ObjectId id) {
 
-  public void setTrigger(String name) {
-    //    Optional<Triggers> triggers = triggerRepository.findTypeByName(name);
-    //    triggers.get().setType("true");
     Query query = new Query();
-    query.addCriteria(Criteria.where("_id").is(name));
+    query.addCriteria(Criteria.where("_id").is(id));
 
     Update update = new Update();
     update.set("is_executed", true);
 
     Triggers userTest = mongoOperations.findAndModify(query, update, new FindAndModifyOptions().returnNew(true), Triggers.class);
-    System.out.println("userTest - " + userTest);
+    //    System.out.println("userTest - " + userTest);
   }
 
   //  @Async
-  public void onceScheduler(Triggers item, MongoDatabase database) {
+  @SneakyThrows
+  public void Scheduler(Triggers item, MongoDatabase database) {
+
+    DateTimeFormatter currentdate = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    // Use Pak's time zone to format the date in
+    sdf.setTimeZone(TimeZone.getTimeZone("Pakistan Standard Time (PKT)"));
+    LocalDateTime now = LocalDateTime.now();
+    String date = currentdate.format(now);
+    Date dateformate = sdf.parse(date);
 
     System.out.println("Current Item : " + item + " and Thread name : " + Thread.currentThread().getName());
-    // Displaying hour using Format class using  format
-    // specifiers
-    // '%tl' for hours and '%tM' for minutes
-    format = new Formatter();
-    format.format("%tl:%tM", gfg_calender, gfg_calender);
+    Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
+    Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
+    String index[] = segment.get().getSegment_collection().split("_");
 
-    // only check time for Once case
-    CustomThread t1 = new CustomThread("First  thread");
-    Thread thread = new Thread(t1);
+    MongoCollection collection = database.getCollection(index[0]);
+    try {
+      database.createCollection("triggerinvalidcollection");
+      System.out.println("Collection created successfully");
+    } catch (MongoCommandException e) {
+      MongoCollection mongoCollection = database.getCollection("triggerinvalidcollection");
+    }
+    TriggerCollection triggerCollection = new TriggerCollection();
+    triggerCollection.setTrigger_id(item.get_id());
+    triggerCollection.setCampaign_id(item.getCampaign());
+    triggerCollection.setSegment_id(campaign.get().getSegment());
+    triggerCollection.setType(item.getType());
+    triggerCollection.setDate_executed(dateformate);
+    MongoCursor<Document> cursor = collection.find().iterator();
+    int invalidCounter = 0;
+    int validCounter = 0;
+    int nullEmails = 0;
+    // for testing  atleast one notification sent for email and  sms ...****
+    int smslimit = 0;
+    Document document;
+    try {
+      while (cursor.hasNext()) {
+        //            cursor.next();
+        document = cursor.next();
+        Document details = new Document();
+        details = (Document) document.get("clr");
+        String number = (String) details.get("cust_mob_phone");
+        String email = (String) details.get("cust_email_id");
 
-    // "11:57" equal to format
-    if (item.getTime().equals("11:57")) {
-      Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
-      Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
-      String index[] = segment.get().getSegment_collection().split("_");
-
-      MongoCollection collection = database.getCollection(index[0]);
-
-      MongoCursor<Document> cursor = collection.find().iterator();
-      int invalidCounter = 0;
-      int validCounter = 0;
-      int invalidEmails = 0;
-      int nullEmails = 0;
-      // for testing  atleast one notification sent for email and  sms ...****
-      int smslimit = 0;
-      // for testing ...****
-      Document document;
-      try {
-        while (cursor.hasNext()) {
-          //            cursor.next();
-          document = cursor.next();
-          Document details = new Document();
-          details = (Document) document.get("clr");
-          String number = (String) details.get("cust_mob_phone");
-          String email = (String) details.get("cust_email_id");
-
-          boolean isValid = false;
+        boolean Valid = false;
+        boolean inValid = false;
+        if (campaign.get().getType().equalsIgnoreCase("email")) {
           if (email != null || !email.matches("")) {
             Matcher matcher = pattern.matcher(email);
             if (matcher.matches() == true) {
               //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
             } else {
-              invalidEmails++;
-              invalidCustomerService.addInvalidCustomer(document);
+              invalidCounter++;
+              String reason = "001";// for email failed
+              saveNewTriggerCollection(triggerCollection, dateformate, document, reason);
             }
-          }
-          if (email == null || email.matches("")) {
+          } else if (email == null || email.matches("")) {
             nullEmails++;
+          } else {
+            continue;
           }
+        }
+        if (campaign.get().getType().equalsIgnoreCase("SMS")) {
           if (number == null || number.matches("")) {
             invalidCounter++;
+            inValid = true;
           } else {
             if (number.charAt(0) == '0') {
               number = number.replace("-", "");
               if (number.length() != 11) {
                 invalidCounter++;
+                inValid = true;
               } else {
                 number = number.substring(1, number.length());
                 number = "+92" + number;
-                isValid = true;
+                Valid = true;
                 smslimit++;
                 validCounter++;
               }
             } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
               if (number.length() != 13) {
                 invalidCounter++;
+                inValid = true;
               } else {
-                isValid = true;
+                Valid = true;
                 smslimit++;
                 validCounter++;
               }
             } else {
               invalidCounter++;
+              inValid = true;
             }
           }
-          if (isValid) {
+          if (Valid) {
             if (smslimit == 1) {
               //              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
               //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
               //              smsCustomers.setMobile_phone_number("+923105405425");
               //              smsCustomers.setMailing_address(email);
               //              smsService.send(smsCustomers);
-              //                            senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-              //              System.out.println("Test email sent successfully ;")
             }
           }
+          if (inValid) {
+            String reason = "002";// for SMS failed
+            saveNewTriggerCollection(triggerCollection, dateformate, document, reason);
+          }
         }
-
-        System.out.println("Invalid Record is : " + invalidCounter);
-        System.out.println("Valid Record is : " + validCounter);
-        System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
-        item.setIs_executed(true);
-        Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.get_id());
-      } finally {
-        cursor.close();
       }
-      t1.stop();
+
+      System.out.println("Invalid Record is : " + invalidCounter);
+      System.out.println("Valid Record is : " + validCounter);
+      System.out.println("Invalid Emails = " + invalidCounter + " and Null Email values = " + nullEmails);
+      Triggerlog triggerlog = new Triggerlog();
+      triggerlog.setTrigger_id(item.get_id());
+      String formatDateTime = now.format(currentdate);
+      triggerlog.setDate_executed(formatDateTime);
+      triggerlog.setInvalid_counts(invalidCounter);
+      triggerlog.setValid_counts(validCounter);
+      triggerlog.setNull_count(0);
+      triggerLogService.saveTriggerLog(triggerlog);
+      item.setIs_executed(true);
+      setTrigger(item.get_id());
+    } finally {
+      cursor.close();
     }
-    t1.stop();
   }
 
-  //  @Async
-  public void dailyScheduler(Triggers item, MongoDatabase database) {
-    System.out.println("Current Item : " + item + " and Thread name : " + Thread.currentThread().getName());
-    // Displaying hour using Format class using  format
-    // specifiers
-    // '%tl' for hours and '%tM' for minutes
-    format = new Formatter();
-    format.format("%tl:%tM", gfg_calender, gfg_calender);
-
-    CustomThread t2 = new CustomThread("Second  thread");
-    Thread thread = new Thread(t2);
-
-    if (item.getTime().equals("21:00")) {
-      Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
-      Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
-      String index[] = segment.get().getSegment_collection().split("_");
-
-      MongoCollection collection = database.getCollection(index[0]);
-
-      MongoCursor<Document> cursor = collection.find().iterator();
-      int invalidCounter = 0;
-      int validCounter = 0;
-      int invalidEmails = 0;
-      int nullEmails = 0;
-      // for testing  atleast one notification sent for email and  sms ...****
-      int smslimit = 0;
-      // for testing ...****
-      Document document;
-      try {
-        while (cursor.hasNext()) {
-          //            cursor.next();
-          document = cursor.next();
-          Document details = new Document();
-          details = (Document) document.get("clr");
-          String number = (String) details.get("cust_mob_phone");
-          String email = (String) details.get("cust_email_id");
-          boolean isValid = false;
-          if (email != null || !email.matches("")) {
-            Matcher matcher = pattern.matcher(email);
-            if (matcher.matches() == true) {
-              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
-            } else {
-              invalidEmails++;
-              invalidCustomerService.addInvalidCustomer(document);
-            }
-          }
-          if (email == null || email.matches("")) {
-            nullEmails++;
-          }
-          if (number == null || number.matches("")) {
-            invalidCounter++;
-          } else {
-            if (number.charAt(0) == '0') {
-              number = number.replace("-", "");
-              if (number.length() != 11) {
-                invalidCounter++;
-              } else {
-                number = number.substring(1, number.length());
-                number = "+92" + number;
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
-              if (number.length() != 13) {
-                invalidCounter++;
-              } else {
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else {
-              invalidCounter++;
-            }
-          }
-          if (isValid) {
-            if (smslimit == 1) {
-              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-              //              smsCustomers.setMobile_phone_number("+923105405425");
-              //              smsCustomers.setMailing_address(email);
-              //              smsService.send(smsCustomers);
-              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-              //              System.out.println("Test email sent successfully ;");
-            }
-          }
-        }
-        System.out.println("Invalid Record is : " + invalidCounter);
-        System.out.println("Valid Record is : " + validCounter);
-        System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
-        item.setIs_executed(true);
-        Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.get_id());
-      } finally {
-        cursor.close();
-      }
-      t2.stop();
-    }
-    t2.stop();
-  }
-
-  //  @Async
-  public void weeklyScheduler(Triggers item, MongoDatabase database) {
-    System.out.println("Current Item : " + item + " and Thread name : " + Thread.currentThread().getName());
-    // Displaying hour using Format class using  format
-    // specifiers
-    // '%tl' for hours and '%tM' for minutes
-    format = new Formatter();
-    format.format("%tl:%tM", gfg_calender, gfg_calender);
-
-    System.out.println("weekly: " + item + "Thread name : " + Thread.currentThread().getName());
-    CustomThread t3 = new CustomThread("Third  thread");
-    Thread thread = new Thread(t3);
-
-    if (item.getTime().equals(format)) {
-      Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
-      Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
-      //        String index[] = result.get(0).getSegment_collection().split("_");
-      String index[] = segment.get().getSegment_collection().split("_");
-
-      MongoCollection collection = database.getCollection(index[0]);
-
-      MongoCursor<Document> cursor = collection.find().iterator();
-      int invalidCounter = 0;
-      int validCounter = 0;
-      int invalidEmails = 0;
-      int nullEmails = 0;
-      // for testing  atleast one notification sent for email and  sms ...****
-      int smslimit = 0;
-      // for testing ...****
-      Document document;
-      try {
-        while (cursor.hasNext()) {
-          //            cursor.next();
-          document = cursor.next();
-          Document details = new Document();
-          details = (Document) document.get("clr");
-          String number = (String) details.get("cust_mob_phone");
-          String email = (String) details.get("cust_email_id");
-          boolean isValid = false;
-          if (email != null || !email.matches("")) {
-            Matcher matcher = pattern.matcher(email);
-            if (matcher.matches() == true) {
-              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
-            } else {
-              invalidEmails++;
-              invalidCustomerService.addInvalidCustomer(document);
-            }
-          }
-          if (email == null || email.matches("")) {
-            nullEmails++;
-          }
-          if (number == null || number.matches("")) {
-            invalidCounter++;
-          } else {
-            if (number.charAt(0) == '0') {
-              number = number.replace("-", "");
-              if (number.length() != 11) {
-                invalidCounter++;
-              } else {
-                number = number.substring(1, number.length());
-                number = "+92" + number;
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
-              if (number.length() != 13) {
-                invalidCounter++;
-              } else {
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else {
-              invalidCounter++;
-            }
-          }
-          if (isValid) {
-            if (smslimit == 1) {
-              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-              //              smsCustomers.setMobile_phone_number("+923105405425");
-              //              smsCustomers.setMailing_address(email);
-              //              smsService.send(smsCustomers);
-              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-              //              System.out.println("Test email sent successfully ;");
-            }
-          }
-        }
-        System.out.println("Invalid Record is : " + invalidCounter);
-        System.out.println("Valid Record is : " + validCounter);
-        System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
-        item.setIs_executed(true);
-        Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.get_id());
-      } finally {
-        cursor.close();
-      }
-      t3.stop();
-      //      System.out.println("Thread.getState() : "+thread.getState());
-    }
-    t3.stop();
-    //    System.out.println("Thread.getState() : "+thread.getState());
-
-  }
-
-  //  @Async
-  public void monthlyScheduler(Triggers item, MongoDatabase database) {
-    System.out.println("Current Item : " + item + " and Thread name : " + Thread.currentThread().getName());
-    // Displaying hour using Format class using  format
-    // specifiers
-    // '%tl' for hours and '%tM' for minutes
-    format = new Formatter();
-    format.format("%tl:%tM", gfg_calender, gfg_calender);
-
-    CustomThread t4 = new CustomThread("Forth  thread");
-    Thread thread = new Thread(t4);
-
-    if (item.getTime().equals(format)) {
-      Optional<Campaigns> campaign = campaignService.getById(item.getCampaign());
-      Optional<Segments> segment = segmentService.getById(campaign.get().getSegment());
-      String index[] = segment.get().getSegment_collection().split("_");
-
-      MongoCollection collection = database.getCollection(index[0]);
-
-      MongoCursor<Document> cursor = collection.find().iterator();
-      int invalidCounter = 0;
-      int validCounter = 0;
-      int invalidEmails = 0;
-      int nullEmails = 0;
-      // for testing  atleast one notification sent for email and  sms ...****
-      int smslimit = 0;
-      // for testing ...****
-      Document document;
-      try {
-        while (cursor.hasNext()) {
-          //            cursor.next();
-          document = cursor.next();
-          Document details = new Document();
-          details = (Document) document.get("clr");
-          String number = (String) details.get("cust_mob_phone");
-          String email = (String) details.get("cust_email_id");
-          boolean isValid = false;
-          if (email != null || !email.matches("")) {
-            Matcher matcher = pattern.matcher(email);
-            if (matcher.matches() == true) {
-              //              senderService.sendSimpleEmail(email, "This is test email body", "This is email subject");
-            } else {
-              invalidEmails++;
-              invalidCustomerService.addInvalidCustomer(document);
-            }
-          }
-          if (email == null || email.matches("")) {
-            nullEmails++;
-          }
-          if (number == null || number.matches("")) {
-            invalidCounter++;
-          } else {
-            if (number.charAt(0) == '0') {
-              number = number.replace("-", "");
-              if (number.length() != 11) {
-                invalidCounter++;
-              } else {
-                number = number.substring(1, number.length());
-                number = "+92" + number;
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else if (number.charAt(0) == '+' && number.charAt(1) == '9' && number.charAt(2) == '2') {
-              if (number.length() != 13) {
-                invalidCounter++;
-              } else {
-                isValid = true;
-                smslimit++;
-                validCounter++;
-              }
-            } else {
-              invalidCounter++;
-            }
-          }
-          if (isValid) {
-            if (smslimit == 1) {
-              System.out.println("Sms Limit is One>>>>>>>>>>>>>>>>>>>");
-              //              //              Enter your number for test in smsCustomers.setMobile_phone_number()
-              //              smsCustomers.setMobile_phone_number("+923105405425");
-              //              smsCustomers.setMailing_address(email);
-              //              smsService.send(smsCustomers);
-              //              senderService.sendSimpleEmail("danishnaseer98@yahoo.com", "ABC", "This is test email body");
-              //              System.out.println("Test email sent successfully ;");
-            }
-          }
-        }
-        System.out.println("Invalid Record is : " + invalidCounter);
-        System.out.println("Valid Record is : " + validCounter);
-        System.out.println("Invalid Emails = " + invalidEmails + " and Null Email values = " + nullEmails);
-        item.setIs_executed(true);
-        Optional<Triggers> trigger = getTrigger(item.getType());
-        setTrigger(item.get_id());
-      } finally {
-        cursor.close();
-      }
-      t4.stop();
-    }
-    t4.stop();
+  public void saveNewTriggerCollection(TriggerCollection triggerCollection, Date date, Document document, String reason) {
+    TriggerCollection triggerCollection1 = new TriggerCollection();
+    triggerCollection1.setTrigger_id(triggerCollection.getTrigger_id());
+    triggerCollection1.setCampaign_id(triggerCollection.getCampaign_id());
+    triggerCollection1.setSegment_id(triggerCollection.getSegment_id());
+    triggerCollection1.setCustomer_id((ObjectId) document.get("_id"));
+    triggerCollection1.setDate_executed(date);
+    triggerCollection1.setReason(reason);
+    triggerCollection1.setType(triggerCollection.getType());
+    triggerCollectionService.saveTriggerCollection(triggerCollection1);
   }
 }

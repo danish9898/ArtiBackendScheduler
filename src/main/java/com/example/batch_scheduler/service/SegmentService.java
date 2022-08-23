@@ -3,6 +3,7 @@ package com.example.batch_scheduler.service;
 import com.example.batch_scheduler.model.Campaigns;
 import com.example.batch_scheduler.model.Segments;
 import com.example.batch_scheduler.repository.SegmentRepository;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,7 @@ public class SegmentService {
     }
     return result;
   }
-  public Optional<Segments> getById(String id){
+  public Optional<Segments> getById(ObjectId id){
     //    System.out.println("pass id is : " +id);
     //    System.out.println("Campaign id : "+campaignsRepository.findById(id));
     return segmentRepository.findBySegmentId(id);

@@ -5,14 +5,14 @@ import lombok.Setter;
 import lombok.ToString;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.stereotype.Service;
 
 import javax.persistence.Id;
 
 @Getter
 @Setter
 @ToString
-
-@Document(collection = "invalidRecord")
+@Document(collection = "invalidcustomers")
 public class InvalidCustomers {
 
   @Id

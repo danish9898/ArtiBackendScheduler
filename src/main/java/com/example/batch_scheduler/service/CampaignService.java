@@ -34,7 +34,7 @@ public class CampaignService {
     }
     return result;
   }
-  public Optional<Campaigns> getById(String id){
+  public Optional<Campaigns> getById(ObjectId id){
 //    System.out.println("pass id is : " +id);
 //    System.out.println("Campaign id : "+campaignsRepository.findById(id));
     return campaignsRepository.findByCampaignId(id);

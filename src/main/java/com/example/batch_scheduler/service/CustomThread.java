@@ -7,13 +7,13 @@ public class CustomThread implements Runnable {
   private String name;
   Thread t;
 
-  CustomThread(String threadname) {
-    name = threadname;
-    t = new Thread(this, name);
-    System.out.println("New thread: " + t);
-    exit = false;
-    t.start(); // Starting the thread
-  }
+//  CustomThread(String threadname) {
+//    name = threadname;
+//    t = new Thread(this, name);
+//    System.out.println("New thread: " + t);
+//    exit = false;
+//    t.start(); // Starting the thread
+//  }
 
   // execution of thread starts from run() method
   @Override
@@ -24,7 +24,7 @@ public class CustomThread implements Runnable {
 //      System.out.println(name + " Counter i : " + i);
       i++;
       try {
-        Thread.sleep(100);
+        Thread.sleep(1000);
         //        Thread.interrupted();
 
       } catch (InterruptedException e) {

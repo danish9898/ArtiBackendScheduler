@@ -43,7 +43,7 @@ public class CustomerService {
       System.out.println("End Thread in Customer Sleep "+LocalTime.now());
 
 //      smsService.send(result.get(0));
-      System.out.println("Result : " + result.get(0).getFirst_name()+" and number : "+result.get(0).getMobile_phone_number());
+      System.out.println("Result : " + result.get(0).getFirst_name()+" and number : "+result.get(0).getGender());
     } catch (InterruptedException e) {
       e.printStackTrace();
     }

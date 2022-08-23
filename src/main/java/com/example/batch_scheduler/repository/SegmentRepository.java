@@ -2,6 +2,7 @@ package com.example.batch_scheduler.repository;
 
 import com.example.batch_scheduler.model.Campaigns;
 import com.example.batch_scheduler.model.Segments;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
@@ -13,7 +14,7 @@ import java.util.Optional;
 public interface SegmentRepository extends MongoRepository<Segments, Integer> {
 
   @Query("{ '_id' : ?0 }")
-  Optional<Segments> findBySegmentId(String id);
+  Optional<Segments> findBySegmentId(ObjectId id);
 
   @Query("{ 'name' : ?0 }")
   Optional<Segments> findByName(String name);

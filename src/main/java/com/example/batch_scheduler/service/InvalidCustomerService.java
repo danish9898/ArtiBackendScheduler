@@ -59,5 +59,22 @@ public class InvalidCustomerService {
     invalidCustomers.setRisk_rating((String) document.get("risk_rating"));
     invalidCustomerRepository.save(invalidCustomers);
   }
+  public InvalidCustomers addInvalidCustomerList(Document document) {
+    InvalidCustomers invalidCustomers = new InvalidCustomers();
+    invalidCustomers.set_id((ObjectId) document.get("_id"));
+    invalidCustomers.setIparty_id((String) document.get("iparty_id"));
+    invalidCustomers.setBirth_place((String) document.get("birth_place"));
+    invalidCustomers.setCity((String) document.get("city"));
+    invalidCustomers.setC( document.get("c"));
+    invalidCustomers.setCreated_on((String) document.get("created_on"));
+    invalidCustomers.setAddress((String) document.get("address"));
+    invalidCustomers.setDate_of_birth((String) document.get("date_of_birth"));
+    invalidCustomers.setFirst_name((String) document.get("first_name"));
+    invalidCustomers.setGender((String) document.get("gender"));
+    invalidCustomers.setClr( document.get("clr"));
+    invalidCustomers.setRisk_rating((String) document.get("risk_rating"));
+    return invalidCustomers;
+  }
+
 }
 

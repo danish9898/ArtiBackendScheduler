@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface CampaignsRepository extends MongoRepository<Campaigns, Integer> {
 
     @Query("{ '_id' : ?0 }")
-    Optional<Campaigns> findByCampaignId(String id);
+    Optional<Campaigns> findByCampaignId(ObjectId id);
 
     @Query("{ 'name' : ?0 }")
     Optional<Campaigns> findByName(String name);
